@@ -1,0 +1,29 @@
+# Segredos e configuração específica da máquina
+valheim.env
+
+# Instalação/runtime baixado pelo servidor ou pelo SteamCMD
+data/
+
+# Estado persistente do mundo e artefatos gerados pelo container
+config/backups/
+config/worlds_local/
+config/prefs
+
+# Bancos de dados e arquivos auxiliares de banco, em qualquer diretório
+*.db
+*.db.old
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+
+# Outros backups locais
+*.bak
+*.backup
+*.old
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.temp
+

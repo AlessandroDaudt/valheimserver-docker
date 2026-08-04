@@ -1,0 +1,13 @@
+services:
+  valheim:
+    image: ghcr.io/community-valheim-tools/valheim-server:latest
+    container_name: valheim-server
+    restart: unless-stopped
+    cap_add:
+      - sys_nice
+    stop_grace_period: 2m
+    volumes:
+      - ./config:/config
+      - ./data:/opt/valheim
+    env_file:
+      - ./valheim.env
