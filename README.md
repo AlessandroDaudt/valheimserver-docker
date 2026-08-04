@@ -99,13 +99,4 @@ Os comentários de exemplo já existentes nesses arquivos podem permanecer.
 | `config/prefs` | preferências geradas pelo runtime | ignorar |
 | `data/` | instalação/runtime do servidor | ignorar |
 
-O `.gitignore` evita que esses arquivos sejam adicionados ao Git. Ele não
-remove arquivos locais nem tira arquivos que já tenham sido versionados; nesse
-último caso, seria necessário removê-los do índice com cuidado.
-
-> **Atenção sobre a nuvem:** este projeto está dentro de uma pasta do
-> OneDrive. O `.gitignore` controla apenas o Git; arquivos ignorados ainda
-> podem ser sincronizados pelo OneDrive. Para impedir essa sincronização,
-> mantenha os dados do servidor fora de uma pasta sincronizada ou configure a
-> exclusão no próprio OneDrive.
 
