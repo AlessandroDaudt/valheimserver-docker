@@ -14,14 +14,14 @@ jobs:
 
     steps:
       - name: Verificar Docker
-        shell: pwsh
+        shell: bash
         run: |
           docker version
           docker compose version
 
       - name: Verificar projeto Valheim
-        shell: pwsh
-        working-directory: C:\Users\alessandro\OneDrive\projetos\valheim-server
+        shell: bash
+        working-directory: /home/alessandro/valheim-server
         run: |
           docker compose config --quiet
           docker compose ps
