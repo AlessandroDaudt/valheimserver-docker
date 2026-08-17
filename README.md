@@ -129,3 +129,4 @@ estão em [`docs/PAINEL_WEB.md`](docs/PAINEL_WEB.md).
 | `config/worlds_local/` | mundo, bancos `.db` e backups do mundo | ignorar |
 | `config/backups/` | ZIPs de backup do servidor | ignorar |
 | `data/` | instalação/runtime do servidor | ignorar |
+
