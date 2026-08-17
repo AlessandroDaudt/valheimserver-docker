@@ -6,8 +6,17 @@ services:
     cap_add:
       - sys_nice
     stop_grace_period: 2m
+    ports:
+      - "2456-2458:2456-2458/udp"
     volumes:
       - ./config:/config
       - ./data:/opt/valheim
     env_file:
       - ./valheim.env
+
+networks:
+  default:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd42:6a1:1::/64
