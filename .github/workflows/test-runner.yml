@@ -1,4 +1,4 @@
-name: Deploy Valheim
+name: Deploy Valheim e painel web
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Atualizar servidor Valheim
+    name: Atualizar servidor e interface HTTPS
     runs-on:
       - self-hosted
       - valheim
@@ -35,20 +35,31 @@ jobs:
           docker version
           docker compose version
 
-      - name: Validar projeto Valheim
+      - name: Validar projeto e sintaxe da aplicação web
         shell: bash
         working-directory: /home/alessandro/valheim-server
         run: |
           docker compose config --quiet
+          docker compose build --pull web
+          docker compose run --rm --no-deps --entrypoint python web -m py_compile app.py
 
-      - name: Atualizar imagem e aplicar mudanças
+      - name: Atualizar imagens e aplicar mudanças
         shell: bash
         working-directory: /home/alessandro/valheim-server
         run: |
           docker compose pull valheim
-          docker compose up -d --force-recreate --remove-orphans
+          docker compose up -d --build --force-recreate --remove-orphans
 
-      - name: Confirmar serviço
+      - name: Confirmar serviços e HTTPS
         shell: bash
         working-directory: /home/alessandro/valheim-server
-        run: docker compose ps
+        run: |
+          docker compose ps
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --insecure https://127.0.0.1:8443/healthz; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs --tail=200 web
+          exit 1

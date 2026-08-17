@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Logs · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">DIAGNÓSTICO</p><h1>Logs recentes</h1></div><a class="button" href="{{ url_for('logs') }}">Atualizar</a></div>
+<section class="card log-card"><pre>{{ logs }}</pre></section>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Visão geral · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">SERVIDOR VALHEIM</p><h1>Visão geral</h1></div>
+  <a class="button" href="{{ url_for('logs') }}">Ver logs</a>
+</div>
+<section class="grid three">
+  <article class="card status-card">
+    <p class="eyebrow">STATUS DO CONTAINER</p>
+    <h2 class="status-{{ status.status }}">{{ status.status }}</h2>
+    {% if status.available %}
+      <p>{{ status.name }}<br><span class="muted">{{ status.image }}</span></p>
+    {% else %}<p class="muted">{{ status.error }}</p>{% endif %}
+  </article>
+  <article class="card">
+    <p class="eyebrow">CONFIGURAÇÃO ATUAL</p>
+    <h2>{{ env.get('SERVER_NAME', 'não definido') }}</h2>
+    <p class="muted">Mundo: {{ env.get('WORLD_NAME', 'não definido') }}<br>Porta: {{ env.get('SERVER_PORT', 'não definida') }} · Crossplay: {{ env.get('CROSSPLAY', 'não definido') }}</p>
+  </article>
+  <article class="card">
+    <p class="eyebrow">PERFIL</p>
+    <h2>{{ current_user.username }}</h2>
+    <p class="muted">{{ 'Administrador com acesso total' if current_user.role == 'admin' else 'Operador de configuração e operação' }}</p>
+  </article>
+</section>
+<section class="card">
+  <div class="section-heading"><div><p class="eyebrow">CONTROLE</p><h2>Operações do servidor</h2></div><span class="muted">As ações usam o Docker Engine local.</span></div>
+  <div class="actions">
+    {% for action, label in [('start', 'Iniciar'), ('restart', 'Reiniciar'), ('stop', 'Parar')] %}
+    <form method="post" action="{{ url_for('server_action') }}" onsubmit="return confirm('Confirma {{ label|lower }} o container do Valheim?')">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ action }}">
+      <button class="{{ 'primary' if action == 'restart' else 'button' }}" type="submit">{{ label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+<section class="grid two">
+  <article class="card"><p class="eyebrow">MANUTENÇÃO</p><h2>Configurações</h2><p class="muted">Edite todas as variáveis documentadas, variáveis adicionais e aplique a alteração recriando o container.</p><a class="button" href="{{ url_for('settings') }}">Abrir configurações</a></article>
+  <article class="card"><p class="eyebrow">JOGADORES</p><h2>Listas administrativas</h2><p class="muted">Gerencie administradores, banidos e permitidos por identificador, um por linha.</p><a class="button" href="{{ url_for('players') }}">Abrir listas</a></article>
+</section>
+{% endblock %}

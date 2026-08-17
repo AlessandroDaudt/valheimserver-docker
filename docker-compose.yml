@@ -14,6 +14,41 @@ services:
     env_file:
       - ./valheim.env
 
+  web:
+    build:
+      context: ./web
+    container_name: valheim-web
+    restart: unless-stopped
+    depends_on:
+      valheim:
+        condition: service_started
+    env_file:
+      - path: ./web.env
+        required: false
+    environment:
+      VALHEIM_ENV_FILE: /runtime/valheim.env
+      VALHEIM_CONFIG_DIR: /config
+      WEB_DATA_DIR: /app/data
+      VALHEIM_CONTAINER_NAME: valheim-server
+      WEB_TLS_DIR: /certs
+    ports:
+      - "8443:8443/tcp"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import ssl,urllib.request; urllib.request.urlopen('https://127.0.0.1:8443/healthz', context=ssl._create_unverified_context(), timeout=3)
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./valheim.env:/runtime/valheim.env
+      - ./config:/config
+      - ./web-data:/app/data
+      - ./web-certs:/certs
+      - /var/run/docker.sock:/var/run/docker.sock
+
 networks:
   default:
     enable_ipv6: true

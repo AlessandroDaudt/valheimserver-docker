@@ -27,3 +27,9 @@ config/prefs
 *.tmp
 *.temp
 
+# Estado, credenciais e certificados da interface web
+web.env
+web-data/*
+!web-data/.gitkeep
+web-certs/*
+!web-certs/.gitkeep

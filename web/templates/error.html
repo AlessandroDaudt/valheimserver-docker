@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Erro {{ code }} · Valheim Web{% endblock %}
+{% block content %}<section class="card error-page"><p class="eyebrow">ERRO {{ code }}</p><h1>{{ message }}</h1><a class="button" href="{{ url_for('dashboard') if current_user else url_for('login') }}">Voltar</a></section>{% endblock %}

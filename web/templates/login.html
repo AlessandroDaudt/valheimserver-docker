@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Login · Valheim Web{% endblock %}
+{% block content %}
+<section class="login-card card">
+  <p class="eyebrow">ADMINISTRAÇÃO DO SERVIDOR</p>
+  <h1>Entrar</h1>
+  <p class="muted">Use uma conta autorizada para gerenciar o servidor Valheim.</p>
+  <form method="post" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Usuário<input name="username" autocomplete="username" required autofocus></label>
+    <label>Senha<input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Entrar</button>
+  </form>
+  <p class="small muted">O primeiro acesso usa a senha configurada em <code>WEB_ADMIN_PASSWORD</code> ou a senha temporária exibida nos logs do container web.</p>
+</section>
+{% endblock %}

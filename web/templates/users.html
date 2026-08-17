@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Usuários · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CONTROLE DE ACESSO</p><h1>Usuários</h1></div></div>
+<section class="card">
+  <h2>Novo usuário</h2><p class="muted small">Senhas precisam ter pelo menos 12 caracteres.</p>
+  <form method="post" class="inline-form"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="create"><label>Usuário<input name="username" required></label><label>Senha<input type="password" name="password" minlength="12" required></label><label>Papel<select name="role"><option value="operator">operator</option><option value="admin">admin</option></select></label><button class="primary" type="submit">Criar</button></form>
+</section>
+<section class="card"><h2>Contas existentes</h2><div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Papel</th><th>Status</th><th>Último acesso</th><th></th></tr></thead><tbody>
+{% for user in users %}<tr><td>{{ user.username }}</td><td><select name="role" form="edit-user-{{ user.id }}"><option value="operator" {{ 'selected' if user.role == 'operator' }}>operator</option><option value="admin" {{ 'selected' if user.role == 'admin' }}>admin</option></select></td><td><select name="active" form="edit-user-{{ user.id }}"><option value="1" {{ 'selected' if user.active }}>ativo</option><option value="0" {{ 'selected' if not user.active }}>inativo</option></select></td><td>{{ user.last_login or 'nunca' }}</td><td><form id="edit-user-{{ user.id }}" method="post" class="row-form"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="update"><input type="hidden" name="user_id" value="{{ user.id }}"><input type="password" name="password" placeholder="nova senha"><button class="button" type="submit">Salvar</button></form><form method="post" class="delete-form" onsubmit="return confirm('Excluir este usuário?')"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete"><input type="hidden" name="user_id" value="{{ user.id }}"><button class="danger-link" type="submit">Excluir</button></form></td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

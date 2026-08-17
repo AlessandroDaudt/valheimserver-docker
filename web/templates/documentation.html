@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Documentação · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">REFERÊNCIA OPERACIONAL</p><h1>Documentação rápida</h1></div></div>
+<section class="grid two">
+  <article class="card"><h2>Acesso e papéis</h2><p><strong>admin</strong> pode operar o servidor, editar configurações, gerenciar listas, criar usuários e consultar auditoria.</p><p><strong>operator</strong> pode consultar logs, editar parâmetros do servidor, gerenciar listas de jogadores e iniciar, parar ou reiniciar o container do Valheim.</p></article>
+  <article class="card"><h2>Aplicação das mudanças</h2><p>A tela de configurações grava <code>valheim.env</code> e recria o container para que o ambiente seja aplicado. Faça um backup recente antes de mudanças de mundo, porta ou imagem.</p><p>As listas ficam em <code>config/adminlist.txt</code>, <code>bannedlist.txt</code> e <code>permittedlist.txt</code>.</p></article>
+</section>
+<section class="card"><h2>Parâmetros documentados</h2><div class="table-wrap"><table><thead><tr><th>Variável</th><th>Descrição</th></tr></thead><tbody>{% for key, label, field_type, description in settings %}<tr><td><code>{{ key }}</code></td><td>{{ description }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="card"><h2>Backups e atualização</h2><p>Os backups automáticos usam <code>BACKUPS=true</code>, <code>BACKUPS_CRON</code> e <code>BACKUPS_MAX_AGE</code> e são gravados em <code>config/backups/</code>. O procedimento de restauração e atualização da imagem está em <code>docs/OPERACAO.md</code>.</p><p>O HTTPS autoassinado é adequado para rede privada. Para acesso externo, monte um certificado confiável em <code>web-certs/server.crt</code> e <code>web-certs/server.key</code>, ou coloque um proxy TLS confiável à frente da aplicação.</p></section>
+{% endblock %}

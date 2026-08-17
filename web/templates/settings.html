@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Configurações · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">AMBIENTE DO SERVIDOR</p><h1>Configurações</h1></div></div>
+<div class="notice">Salvar esta página atualiza <code>valheim.env</code> e recria o container do Valheim. A senha do servidor fica oculta; deixe o campo vazio para mantê-la.</div>
+<form method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <section class="card settings-grid">
+    {% for item in settings %}
+    <label class="setting">
+      <span>{{ item.label }} <code>{{ item.key }}</code></span>
+      {% if item.type == 'boolean' %}
+      <select name="setting_{{ item.key }}"><option value="true" {{ 'selected' if item.value|lower == 'true' }}>true</option><option value="false" {{ 'selected' if item.value|lower == 'false' }}>false</option></select>
+      {% else %}
+      <input type="{{ 'password' if item.type == 'password' else 'number' if item.type == 'number' else 'text' }}" name="setting_{{ item.key }}" value="{{ '' if item.type == 'password' else item.value }}" {% if item.type == 'password' %}placeholder="mantida se vazio"{% endif %}>
+      {% endif %}
+      <small>{{ item.description }}</small>
+    </label>
+    {% endfor %}
+  </section>
+  <section class="card">
+    <div class="section-heading"><div><p class="eyebrow">EXTENSÕES</p><h2>Variáveis adicionais</h2></div><span class="muted">Use quando a imagem do servidor oferecer uma opção que não está na documentação local.</span></div>
+    {% if custom %}
+    <div class="custom-settings">
+      {% for key, value in custom %}
+      <label><span><code>{{ key }}</code></span><input name="custom_{{ key }}" value="{{ value }}"></label>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Nenhuma variável adicional configurada.</p>{% endif %}
+    <div class="custom-new"><label>Nova chave<input name="custom_new_key" placeholder="MINHA_VARIAVEL"></label><label>Valor<input name="custom_new_value"></label></div>
+  </section>
+  <div class="form-actions"><button class="primary" type="submit">Salvar e recriar servidor</button></div>
+</form>
+{% endblock %}

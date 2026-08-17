@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Auditoria · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CONTROLE</p><h1>Auditoria</h1></div></div>
+<section class="card table-wrap"><table><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody>{% for entry in entries %}<tr><td>{{ entry.created_at }}</td><td>{{ entry.username }}</td><td><code>{{ entry.action }}</code></td><td>{{ entry.detail }}</td></tr>{% else %}<tr><td colspan="4">Nenhum evento registrado.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

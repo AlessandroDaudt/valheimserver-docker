@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Valheim Web{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') if current_user else url_for('login') }}">Valheim Web</a>
+    {% if current_user %}
+    <nav>
+      <a href="{{ url_for('dashboard') }}">Visão geral</a>
+      <a href="{{ url_for('settings') }}">Configurações</a>
+      <a href="{{ url_for('players') }}">Listas de jogadores</a>
+      <a href="{{ url_for('logs') }}">Logs</a>
+      <a href="{{ url_for('documentation') }}">Documentação</a>
+      {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('users') }}">Usuários</a>
+      <a href="{{ url_for('audit') }}">Auditoria</a>
+      {% endif %}
+    </nav>
+    <div class="account">
+      <span>{{ current_user.username }} · {{ current_user.role }}</span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="link-button" type="submit">Sair</button>
+      </form>
+    </div>
+    {% endif %}
+  </header>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

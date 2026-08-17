@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Listas de jogadores · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ADMINISTRAÇÃO DO VALHEIM</p><h1>Listas de jogadores</h1></div></div>
+<div class="notice">Informe um identificador por linha. Entradas duplicadas são removidas. Reinicie o container depois de alterar as listas.</div>
+<section class="grid three">
+{% for item in lists %}
+<form class="card stack" method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="list_type" value="{{ item.key }}">
+  <h2>{{ item.label }}</h2><p class="muted small">Arquivo <code>config/{{ item.key }}.txt</code></p>
+  <textarea name="entries" rows="11" spellcheck="false">{{ item.entries }}</textarea>
+  <button class="button" type="submit">Salvar lista</button>
+</form>
+{% endfor %}
+</section>
+{% endblock %}
