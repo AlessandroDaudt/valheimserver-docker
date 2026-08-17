@@ -3,10 +3,14 @@ from __future__ import annotations
 import os
 import re
 import secrets
+import shutil
 import sqlite3
+import tarfile
 import tempfile
 import threading
 import json
+import io
+from pathlib import PurePosixPath
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 from pathlib import Path
@@ -22,6 +26,7 @@ from flask import (
     jsonify,
     redirect,
     render_template,
+    send_file,
     request,
     session,
     url_for,
@@ -40,8 +45,16 @@ ENV_FILE = Path(os.environ.get("VALHEIM_ENV_FILE", "/runtime/valheim.env"))
 CONFIG_DIR = Path(os.environ.get("VALHEIM_CONFIG_DIR", "/config"))
 CONTAINER_NAME = os.environ.get("VALHEIM_CONTAINER_NAME", "valheim-server")
 STATUS_URL_OVERRIDE = os.environ.get("VALHEIM_STATUS_URL", "").strip()
+BACKUP_STORAGE = CONFIG_DIR / "backups"
+BACKUP_ROOT = BACKUP_STORAGE / "full"
+BACKUP_NAME_RE = re.compile(r"^valheim-full-[A-Za-z0-9_.-]+\.tar\.gz$")
 SESSION_HOURS = int(os.environ.get("WEB_SESSION_HOURS", "8"))
 SERVER_ACTION_LOCK = threading.Lock()
+
+try:
+    MAX_UPLOAD_BYTES = max(16, int(os.environ.get("WEB_MAX_UPLOAD_MB", "2048"))) * 1024 * 1024
+except ValueError:
+    MAX_UPLOAD_BYTES = 2048 * 1024 * 1024
 
 PLAYER_FILES = {
     "adminlist": ("adminlist.txt", "Administradores do Valheim"),
@@ -135,7 +148,7 @@ app = Flask(__name__)
 app.config.update(
     SECRET_KEY=load_secret_key(),
     PERMANENT_SESSION_LIFETIME=timedelta(hours=SESSION_HOURS),
-    MAX_CONTENT_LENGTH=1024 * 1024,
+    MAX_CONTENT_LENGTH=MAX_UPLOAD_BYTES,
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
@@ -318,11 +331,11 @@ def logout() -> Any:
     return redirect(url_for("login"))
 
 
-def read_env_values() -> dict[str, str]:
+def parse_env_values(raw_text: str) -> dict[str, str]:
     if not ENV_FILE.exists():
         raise RuntimeError(f"arquivo de configuração não encontrado: {ENV_FILE}")
     values: dict[str, str] = {}
-    for raw_line in ENV_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
+    for raw_line in raw_text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -334,6 +347,12 @@ def read_env_values() -> dict[str, str]:
         if ENV_KEY_RE.fullmatch(key):
             values[key] = value
     return values
+
+
+def read_env_values() -> dict[str, str]:
+    if not ENV_FILE.exists():
+        raise RuntimeError(f"arquivo de configuraÃ§Ã£o nÃ£o encontrado: {ENV_FILE}")
+    return parse_env_values(ENV_FILE.read_text(encoding="utf-8", errors="replace"))
 
 
 def encode_env_value(value: str) -> str:
@@ -682,6 +701,286 @@ def recreate_valheim_container() -> None:
             raise
 
 
+def _backup_name(reason: str) -> str:
+    safe_reason = re.sub(r"[^a-z0-9]+", "-", reason.lower()).strip("-") or "manual"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return f"valheim-full-{timestamp}-{safe_reason}-{secrets.token_hex(3)}.tar.gz"
+
+
+def _backup_config_paths() -> list[Path]:
+    if not CONFIG_DIR.exists():
+        return []
+    paths: list[Path] = []
+    for path in sorted(CONFIG_DIR.rglob("*"), key=lambda item: str(item)):
+        try:
+            path.relative_to(BACKUP_STORAGE)
+        except ValueError:
+            pass
+        else:
+            continue
+        if path.is_symlink():
+            continue
+        paths.append(path)
+    return paths
+
+
+def _create_full_backup_locked(reason: str) -> dict[str, Any]:
+    if not ENV_FILE.exists():
+        raise RuntimeError(f"arquivo de ambiente nao encontrado: {ENV_FILE}")
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    final_path = BACKUP_ROOT / _backup_name(reason)
+    fd, temp_name = tempfile.mkstemp(prefix=".valheim-full-", suffix=".tar.gz", dir=BACKUP_ROOT)
+    os.close(fd)
+    values = read_env_values()
+    manifest = {
+        "format": "valheim-server-full-backup",
+        "version": 1,
+        "created_at": utc_now(),
+        "reason": reason,
+        "server_name": values.get("SERVER_NAME", ""),
+        "world_name": values.get("WORLD_NAME", ""),
+        "includes": ["valheim.env", "config/ (except config/backups/)"] ,
+    }
+    try:
+        with tarfile.open(temp_name, mode="w:gz") as archive:
+            manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+            manifest_info = tarfile.TarInfo("manifest.json")
+            manifest_info.size = len(manifest_bytes)
+            manifest_info.mode = 0o600
+            archive.addfile(manifest_info, io.BytesIO(manifest_bytes))
+            archive.add(ENV_FILE, arcname="valheim.env", recursive=False)
+            for path in _backup_config_paths():
+                relative = path.relative_to(CONFIG_DIR).as_posix()
+                archive.add(path, arcname=f"config/{relative}", recursive=False)
+        os.chmod(temp_name, 0o600)
+        os.replace(temp_name, final_path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    return _backup_info(final_path)
+
+
+def create_full_backup(reason: str = "manual") -> dict[str, Any]:
+    """Create a consistent world + server environment backup.
+
+    The Valheim container is stopped only while the archive is being created,
+    and is returned to its previous running/stopped state afterwards.
+    """
+    with SERVER_ACTION_LOCK:
+        container = get_valheim_container()
+        container.reload()
+        was_running = container.status == "running"
+        if was_running:
+            container.stop(timeout=120)
+        try:
+            return _create_full_backup_locked(reason)
+        finally:
+            if was_running:
+                container.start()
+
+
+def _backup_info(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    manifest: dict[str, Any] = {}
+    try:
+        with tarfile.open(path, mode="r:gz") as archive:
+            member = archive.getmember("manifest.json")
+            file_object = archive.extractfile(member)
+            if file_object is not None:
+                loaded = json.loads(file_object.read(128 * 1024).decode("utf-8"))
+                if isinstance(loaded, dict):
+                    manifest = loaded
+    except (OSError, tarfile.TarError, KeyError, ValueError, UnicodeError):
+        manifest = {}
+    return {
+        "name": path.name,
+        "path": path,
+        "size": stat.st_size,
+        "size_label": _format_bytes(stat.st_size),
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(timespec="seconds"),
+        "created_at": manifest.get("created_at") or datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(timespec="seconds"),
+        "server_name": manifest.get("server_name", ""),
+        "world_name": manifest.get("world_name", ""),
+        "reason": manifest.get("reason", ""),
+        "valid": bool(manifest),
+    }
+
+
+def _format_bytes(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
+    return f"{size} B"
+
+
+def list_full_backups() -> list[dict[str, Any]]:
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    paths = [path for path in BACKUP_ROOT.iterdir() if path.is_file() and BACKUP_NAME_RE.fullmatch(path.name)]
+    return [_backup_info(path) for path in sorted(paths, key=lambda item: item.stat().st_mtime, reverse=True)]
+
+
+def _resolve_backup(name: str) -> Path:
+    if not BACKUP_NAME_RE.fullmatch(name) or Path(name).name != name:
+        raise ValueError("nome de backup invalido")
+    root = BACKUP_ROOT.resolve()
+    path = (root / name).resolve()
+    if path.parent != root or not path.is_file():
+        raise ValueError("backup nao encontrado")
+    return path
+
+
+def _validate_backup_member(member: tarfile.TarInfo, seen: set[str]) -> None:
+    name = member.name
+    pure_name = PurePosixPath(name)
+    if not name or "\\" in name or pure_name.is_absolute() or ".." in pure_name.parts:
+        raise ValueError("backup contem caminho inseguro")
+    if name in seen:
+        raise ValueError("backup contem membros duplicados")
+    seen.add(name)
+    if name == "manifest.json" or name == "valheim.env":
+        return
+    if name == "config" or name.startswith("config/"):
+        if name == "config/backups" or name.startswith("config/backups/"):
+            raise ValueError("backups aninhados nao sao aceitos")
+        return
+    raise ValueError(f"membro nao permitido no backup: {name}")
+
+
+def _validate_backup_archive(path: Path) -> dict[str, Any]:
+    with tarfile.open(path, mode="r:gz") as archive:
+        members = archive.getmembers()
+        seen: set[str] = set()
+        for member in members:
+            _validate_backup_member(member, seen)
+            if member.issym() or member.islnk() or not (member.isdir() or member.isreg()):
+                raise ValueError("backup contem link ou tipo de arquivo nao permitido")
+        if "manifest.json" not in seen or "valheim.env" not in seen:
+            raise ValueError("backup precisa conter manifest.json e valheim.env")
+        if not any(name == "config" or name.startswith("config/") for name in seen):
+            raise ValueError("backup precisa conter a configuracao do servidor")
+        manifest_file = archive.extractfile(archive.getmember("manifest.json"))
+        if manifest_file is None:
+            raise ValueError("manifesto do backup ausente")
+        manifest = json.loads(manifest_file.read(128 * 1024).decode("utf-8"))
+        if not isinstance(manifest, dict) or manifest.get("format") != "valheim-server-full-backup" or manifest.get("version") != 1:
+            raise ValueError("formato de backup nao reconhecido")
+        env_file = archive.extractfile(archive.getmember("valheim.env"))
+        if env_file is None or len(env_file.read(4 * 1024 * 1024)) >= 4 * 1024 * 1024:
+            raise ValueError("valheim.env ausente ou grande demais")
+        return manifest
+
+
+def _extract_backup(path: Path, destination: Path) -> dict[str, Any]:
+    manifest = _validate_backup_archive(path)
+    destination.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(path, mode="r:gz") as archive:
+        for member in archive.getmembers():
+            target = destination / member.name
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            source = archive.extractfile(member)
+            if source is None:
+                raise ValueError(f"nao foi possivel ler {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("wb") as output:
+                shutil.copyfileobj(source, output, length=1024 * 1024)
+            os.chmod(target, member.mode & 0o777)
+    env_path = destination / "valheim.env"
+    env_values = parse_env_values(env_path.read_text(encoding="utf-8", errors="strict"))
+    if not env_values:
+        raise ValueError("valheim.env do backup esta vazio")
+    if any(key.startswith("WEB_") for key in env_values):
+        raise ValueError("backup nao pode alterar a configuracao do painel web")
+    return manifest
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
+
+
+def _replace_server_files(payload: Path) -> None:
+    payload_config = payload / "config"
+    if not payload_config.is_dir():
+        raise ValueError("configuracao do servidor ausente no backup")
+    env_bytes = (payload / "valheim.env").read_bytes()
+    parse_env_values(env_bytes.decode("utf-8", errors="strict"))
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix=".restore-", dir=BACKUP_ROOT))
+    old_config = work / "old-config"
+    old_config.mkdir()
+    old_env = ENV_FILE.read_bytes() if ENV_FILE.exists() else None
+    moved_old: list[Path] = []
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        for child in list(CONFIG_DIR.iterdir()):
+            if child == BACKUP_STORAGE:
+                continue
+            target = old_config / child.name
+            shutil.move(str(child), str(target))
+            moved_old.append(target)
+        for child in payload_config.iterdir():
+            shutil.move(str(child), str(CONFIG_DIR / child.name))
+        ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix="valheim-env-restore-", dir=ENV_FILE.parent)
+        with os.fdopen(fd, "wb") as output:
+            output.write(env_bytes)
+        os.chmod(temp_name, 0o600)
+        os.replace(temp_name, ENV_FILE)
+    except Exception:
+        for child in list(CONFIG_DIR.iterdir()):
+            if child != BACKUP_STORAGE:
+                _remove_path(child)
+        for old_child in moved_old:
+            if old_child.exists():
+                shutil.move(str(old_child), str(CONFIG_DIR / old_child.name))
+        if old_env is None:
+            if ENV_FILE.exists():
+                ENV_FILE.unlink()
+        else:
+            fd, temp_name = tempfile.mkstemp(prefix="valheim-env-rollback-", dir=ENV_FILE.parent)
+            with os.fdopen(fd, "wb") as output:
+                output.write(old_env)
+            os.chmod(temp_name, 0o600)
+            os.replace(temp_name, ENV_FILE)
+        raise
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def restore_full_backup(name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    path = _resolve_backup(name)
+    with SERVER_ACTION_LOCK:
+        container = get_valheim_container()
+        container.reload()
+        was_running = container.status == "running"
+        if was_running:
+            container.stop(timeout=120)
+        try:
+            safety_backup = _create_full_backup_locked("pre-restore")
+            with tempfile.TemporaryDirectory(prefix="valheim-restore-payload-") as temporary:
+                manifest = _extract_backup(path, Path(temporary))
+                _replace_server_files(Path(temporary))
+        except Exception:
+            if was_running:
+                container.start()
+            raise
+    try:
+        recreate_valheim_container()
+    finally:
+        if not was_running:
+            try:
+                get_valheim_container().stop(timeout=120)
+            except Exception:
+                pass
+    return {"name": path.name, "manifest": manifest}, safety_backup
+
+
 @app.get("/")
 @role_required("admin", "operator")
 def dashboard() -> Any:
@@ -697,6 +996,76 @@ def dashboard() -> Any:
 @role_required("admin", "operator")
 def api_players() -> Any:
     return jsonify(player_status())
+
+
+@app.get("/backups")
+@role_required("admin")
+def backups() -> Any:
+    return render_template("backups.html", backups=list_full_backups(), max_upload_mb=MAX_UPLOAD_BYTES // (1024 * 1024))
+
+
+@app.post("/backups/create")
+@role_required("admin")
+def backup_create() -> Any:
+    try:
+        info = create_full_backup("manual")
+        record_audit("backup.create", info["name"])
+        flash(f"Backup completo criado: {info['name']}", "success")
+    except Exception as exc:
+        record_audit("backup.create.error", str(exc))
+        flash(f"Nao foi possivel criar o backup: {exc}", "error")
+    return redirect(url_for("backups"))
+
+
+@app.post("/backups/upload")
+@role_required("admin")
+def backup_upload() -> Any:
+    uploaded = request.files.get("backup_file")
+    if uploaded is None or not uploaded.filename:
+        flash("Selecione um arquivo .tar.gz.", "error")
+        return redirect(url_for("backups"))
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=".upload-", suffix=".tar.gz", dir=BACKUP_ROOT)
+    os.close(fd)
+    try:
+        uploaded.save(temp_name)
+        _validate_backup_archive(Path(temp_name))
+        final_path = BACKUP_ROOT / f"valheim-full-upload-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}.tar.gz"
+        os.chmod(temp_name, 0o600)
+        os.replace(temp_name, final_path)
+        record_audit("backup.upload", final_path.name)
+        flash(f"Backup enviado e validado: {final_path.name}", "success")
+    except Exception as exc:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+        record_audit("backup.upload.error", str(exc))
+        flash(f"Arquivo de backup invalido: {exc}", "error")
+    return redirect(url_for("backups"))
+
+
+@app.post("/backups/restore")
+@role_required("admin")
+def backup_restore() -> Any:
+    name = request.form.get("name", "")
+    try:
+        restored, safety_backup = restore_full_backup(name)
+        record_audit("backup.restore", f"{restored['name']}; safety={safety_backup['name']}")
+        flash(f"Backup restaurado. O backup de seguranca atual e {safety_backup['name']}.", "success")
+    except Exception as exc:
+        record_audit("backup.restore.error", f"{name}: {exc}")
+        flash(f"Nao foi possivel restaurar o backup: {exc}", "error")
+    return redirect(url_for("backups"))
+
+
+@app.get("/backups/download/<name>")
+@role_required("admin")
+def backup_download(name: str) -> Any:
+    try:
+        path = _resolve_backup(name)
+    except ValueError as exc:
+        abort(404, description=str(exc))
+    record_audit("backup.download", path.name)
+    return send_file(path, as_attachment=True, download_name=path.name, mimetype="application/gzip", max_age=0)
 
 
 @app.route("/settings", methods=["GET", "POST"])

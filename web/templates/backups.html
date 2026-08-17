@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Backups · Valheim Web{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">RECUPERAÇÃO DO SERVIDOR</p><h1>Backups completos</h1></div>
+</div>
+<div class="notice">
+  Cada backup inclui o mundo em <code>config/</code>, listas e demais configurações do servidor, além do <code>valheim.env</code> com seed, senha e outras variáveis. O arquivo é sensível e esta área é exclusiva para administradores.
+</div>
+<section class="grid two">
+  <article class="card">
+    <p class="eyebrow">CRIAR</p>
+    <h2>Backup do estado atual</h2>
+    <p class="muted">O Valheim será parado somente durante a compactação para evitar copiar o mundo enquanto ele está sendo gravado. Depois, o estado anterior será restaurado.</p>
+    <form method="post" action="{{ url_for('backup_create') }}" onsubmit="return confirm('Criar backup completo? O servidor será parado temporariamente.')">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="primary" type="submit">Criar backup</button>
+    </form>
+  </article>
+  <article class="card">
+    <p class="eyebrow">IMPORTAR</p>
+    <h2>Enviar arquivo</h2>
+    <p class="muted">Aceita arquivos <code>.tar.gz</code> criados por este painel, até {{ max_upload_mb }} MiB.</p>
+    <form method="post" action="{{ url_for('backup_upload') }}" enctype="multipart/form-data" class="stack">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>Arquivo de backup<input type="file" name="backup_file" accept=".tar.gz,application/gzip" required></label>
+      <button type="submit">Enviar e validar</button>
+    </form>
+  </article>
+</section>
+<section class="card">
+  <div class="section-heading"><div><p class="eyebrow">ARQUIVOS DISPONÍVEIS</p><h2>Backups do servidor</h2></div><span class="muted small">{{ backups|length }} arquivo(s)</span></div>
+  {% if backups %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Mundo</th><th>Criado</th><th>Tamanho</th><th>Ações</th></tr></thead>
+      <tbody>
+      {% for backup in backups %}
+        <tr>
+          <td><code>{{ backup.name }}</code>{% if backup.reason %}<br><span class="muted small">{{ backup.reason }}</span>{% endif %}</td>
+          <td>{{ backup.world_name or 'não informado' }}</td>
+          <td>{{ backup.created_at }}</td>
+          <td>{{ backup.size_label }}</td>
+          <td>
+            <div class="actions">
+              <a class="button" href="{{ url_for('backup_download', name=backup.name) }}">Baixar</a>
+              <form method="post" action="{{ url_for('backup_restore') }}" onsubmit="return confirm('Restaurar este backup? O servidor será parado, o estado atual será salvo automaticamente e a configuração será substituída.')">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="name" value="{{ backup.name }}">
+                <button class="danger-link" type="submit">Restaurar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">Nenhum backup completo foi criado ainda.</p>
+  {% endif %}
+</section>
+{% endblock %}

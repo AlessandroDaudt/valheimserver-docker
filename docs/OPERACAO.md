@@ -86,6 +86,28 @@ Backups são a proteção de recuperação do mundo e não devem ser armazenados
 Git. Mantenha uma cópia em destino separado do computador do servidor. Inclua
 `web-data/` no backup se precisar preservar contas e auditoria do painel.
 
+## Backup completo pelo painel
+
+Usuários `admin` podem abrir **Backups** no painel e criar um `.tar.gz` que
+contém:
+
+- `valheim.env`, incluindo `SERVER_PASS`, `SEED` e todas as variáveis do servidor;
+- todo `config/`, incluindo `worlds_local/`, listas administrativas e
+  configurações de mods;
+- um `manifest.json` com metadados sem segredos.
+
+O painel para o container apenas durante a compactação, preserva o estado
+anterior e permite baixar o arquivo. Para restaurar, envie um `.tar.gz` criado
+por este projeto, selecione **Restaurar** e confirme. Antes da substituição é
+criado automaticamente um backup `pre-restore`; depois o container é recriado
+para aplicar o ambiente restaurado. `data/`, `web-data/`, `web-certs/` e
+`web.env` não fazem parte deste arquivo.
+
+O limite de upload padrão é 2048 MiB e pode ser alterado com
+`WEB_MAX_UPLOAD_MB` em `web.env`. Os arquivos ficam em
+`config/backups/full/`, fora do Git, e contêm a senha do servidor; proteja o
+acesso HTTPS e os próprios backups.
+
 ## Restauração de um backup
 
 O ZIP atual contém o caminho `config/worlds_local/`. Para restaurar:

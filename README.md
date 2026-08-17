@@ -36,6 +36,12 @@ Altere essa senha em **Usuários** depois do primeiro login.
 
 ## Interface web
 
+O menu **Backups** (somente `admin`) cria um arquivo completo com o mundo,
+listas, configuraÃ§Ãµes de `config/` e o `valheim.env`, incluindo seed, senha e
+outras variÃ¡veis do servidor. O arquivo pode ser baixado, enviado novamente e
+restaurado pelo painel. A restauraÃ§Ã£o cria primeiro um backup de seguranÃ§a,
+para permitir retorno ao estado anterior.
+
 O painel administra o container `valheim-server` através do Docker Engine local.
 Ele oferece dashboard, iniciar/parar/reiniciar, edição de todas as variáveis
 documentadas e adicionais, aplicação das configurações, listas de jogadores,

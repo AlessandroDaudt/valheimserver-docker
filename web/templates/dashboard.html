@@ -67,6 +67,7 @@
 <section class="grid two">
   <article class="card"><p class="eyebrow">MANUTENÇÃO</p><h2>Configurações</h2><p class="muted">Edite todas as variáveis documentadas, variáveis adicionais e aplique a alteração recriando o container.</p><a class="button" href="{{ url_for('settings') }}">Abrir configurações</a></article>
   <article class="card"><p class="eyebrow">JOGADORES</p><h2>Listas administrativas</h2><p class="muted">Gerencie administradores, banidos e permitidos por identificador, um por linha.</p><a class="button" href="{{ url_for('players') }}">Abrir listas</a></article>
+  {% if current_user.role == 'admin' %}<article class="card"><p class="eyebrow">BACKUPS</p><h2>Backups completos</h2><p class="muted">Incluem mundo, listas e configurações do servidor, inclusive seed e senha no ambiente.</p><a class="button" href="{{ url_for('backups') }}">Gerenciar backups</a></article>{% endif %}
 </section>
 <script>
 (() => {

@@ -62,6 +62,23 @@ Ao alterar `SERVER_PORT`, a recriação também remapeia as três portas UDP
 contíguas usadas pelo Valheim (`SERVER_PORT`, `SERVER_PORT+1` e
 `SERVER_PORT+2`).
 
+## Backups completos
+
+O menu **Backups** é exclusivo para administradores porque os arquivos contêm
+o `valheim.env`, incluindo a senha do servidor, a seed e todas as variáveis do
+ambiente. Um backup inclui `valheim.env` e todo o diretório `config/`, exceto
+`config/backups/`, que não é aninhado para evitar duplicação de arquivos.
+
+O botão de criação para o container Valheim somente durante a compactação do
+mundo e depois retorna o serviço ao estado anterior. O arquivo `.tar.gz` pode
+ser baixado ou enviado pelo painel. Antes de qualquer restauração, o sistema
+cria automaticamente um backup `pre-restore` e então substitui o mundo e as
+configurações, recriando o container para aplicar o ambiente restaurado.
+
+O backup não inclui `data/`, `web-data/`, `web-certs/` nem `web.env`: esses
+diretórios pertencem ao runtime ou ao próprio painel e devem ter sua própria
+política de backup.
+
 ## HTTPS
 
 Sem `web.env`, o entrypoint gera certificado autoassinado e a aplicação gera

@@ -14,6 +14,7 @@
       <a href="{{ url_for('dashboard') }}">Visão geral</a>
       <a href="{{ url_for('settings') }}">Configurações</a>
       <a href="{{ url_for('players') }}">Listas de jogadores</a>
+      {% if current_user.role == 'admin' %}<a href="{{ url_for('backups') }}">Backups</a>{% endif %}
       <a href="{{ url_for('logs') }}">Logs</a>
       <a href="{{ url_for('documentation') }}">Documentação</a>
       {% if current_user.role == 'admin' %}
