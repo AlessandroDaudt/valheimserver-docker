@@ -47,6 +47,12 @@ container `valheim-server`, preservando imagem, volumes, portas, rede,
 capabilities e política de restart. Evite executar uma atualização pelo painel
 ao mesmo tempo que o workflow de deploy.
 
+O painel consulta o status interno em `http://valheim:80/status.json`. Com
+`STATUS_HTTP=true`, o container Valheim atualiza esse JSON a cada 10 segundos;
+nenhuma porta de status é publicada no host. O dashboard mostra contagem,
+score, duração, metadados e últimas conexões identificadas nos logs. O nome do
+player pode ficar vazio porque o query server não garante esse campo.
+
 ## Alterar a configuração
 
 O painel apresenta as opções do `valheim.env.example`, os filtros de log

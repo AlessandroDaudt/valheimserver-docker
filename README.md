@@ -64,6 +64,7 @@ documentadas no projeto e preserva variáveis adicionais existentes.
 | `BACKUPS_CRON` | Agenda dos backups | `5 * * * *` |
 | `BACKUPS_MAX_AGE` | Retenção em dias | `7` |
 | `CROSSPLAY` | Ativa crossplay via relay | `true` |
+| `STATUS_HTTP` / `STATUS_HTTP_PORT` | Status interno usado pelo painel para players conectados | `true` / `80` |
 | `UPDATE_CRON` | Agenda de atualização; vazio desativa | vazio |
 | `VALHEIM_LOG_FILTER_CONTAINS_*` | Filtros de mensagens não fatais | conforme ambiente |
 
@@ -98,6 +99,11 @@ servidor. Esse socket equivale a uma permissão elevada no Docker Engine:
 mantenha o painel em uma rede confiável, não publique a porta 8443 diretamente
 na Internet sem TLS confiável e mantenha as credenciais fora do Git.
 
+O painel consulta `http://valheim:80/status.json` somente na rede interna do
+Compose. A seção de presença mostra a contagem em tempo real, os campos
+retornados pelo query server e as últimas conexões identificadas nos logs. O
+query server pode não fornecer o nome do jogador em todas as plataformas.
+
 ## Operação rápida
 
 ```powershell
@@ -129,4 +135,3 @@ estão em [`docs/PAINEL_WEB.md`](docs/PAINEL_WEB.md).
 | `config/worlds_local/` | mundo, bancos `.db` e backups do mundo | ignorar |
 | `config/backups/` | ZIPs de backup do servidor | ignorar |
 | `data/` | instalação/runtime do servidor | ignorar |
-

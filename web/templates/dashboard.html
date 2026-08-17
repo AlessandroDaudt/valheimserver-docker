@@ -35,8 +35,89 @@
     {% endfor %}
   </div>
 </section>
+<section class="card online-card">
+  <div class="section-heading">
+    <div><p class="eyebrow">PRESENÇA NO SERVIDOR</p><h2>Players conectados <span class="online-count" id="online-count">{{ player_status.player_count }}</span></h2></div>
+    <span class="muted small" id="online-updated">{{ player_status.server.last_status_update or 'aguardando status' }}</span>
+  </div>
+  <div id="online-error" class="notice compact {{ '' if player_status.available else 'visible' }}">{{ player_status.error or 'O status HTTP interno será consultado automaticamente.' }}</div>
+  <div class="table-wrap">
+    <table id="online-players-table">
+      <thead><tr><th>Player</th><th>Score</th><th>Tempo conectado</th><th>Detalhes</th></tr></thead>
+      <tbody id="online-players-body">
+      {% for player in player_status.players %}
+        <tr><td>{{ player.name }}</td><td>{{ player.score }}</td><td>{{ player.duration }}</td><td><details><summary>Ver detalhes</summary><pre class="player-details">{{ player.details|tojson(indent=2) }}</pre></details></td></tr>
+      {% else %}
+        <tr><td colspan="4" class="muted">Nenhum player retornado pelo status do servidor.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="server-facts">
+    <span><strong>Servidor:</strong> {{ player_status.server.server_name or env.get('SERVER_NAME', 'não informado') }}</span>
+    <span><strong>Porta:</strong> {{ player_status.server.port or env.get('SERVER_PORT', 'não informado') }}</span>
+    <span><strong>Steam ID:</strong> {{ player_status.server.steam_id or 'não informado' }}</span>
+    <span><strong>Protegido:</strong> {{ 'sim' if player_status.server.password_protected else 'não informado' }}</span>
+  </div>
+  <details class="recent-connections"><summary>Últimas conexões detectadas nos logs</summary>
+    {% if player_status.recent_connections %}<ul>{% for connection in player_status.recent_connections %}<li><strong>{{ connection.name }}</strong> · ZDOID <code>{{ connection.zdoid }}</code></li>{% endfor %}</ul>{% else %}<p class="muted small">Nenhuma conexão identificável nos logs recentes.</p>{% endif %}
+    <p class="muted small">O query server pode não fornecer nomes; as conexões acima são evidências recentes do log e não substituem a contagem em tempo real.</p>
+  </details>
+</section>
 <section class="grid two">
   <article class="card"><p class="eyebrow">MANUTENÇÃO</p><h2>Configurações</h2><p class="muted">Edite todas as variáveis documentadas, variáveis adicionais e aplique a alteração recriando o container.</p><a class="button" href="{{ url_for('settings') }}">Abrir configurações</a></article>
   <article class="card"><p class="eyebrow">JOGADORES</p><h2>Listas administrativas</h2><p class="muted">Gerencie administradores, banidos e permitidos por identificador, um por linha.</p><a class="button" href="{{ url_for('players') }}">Abrir listas</a></article>
 </section>
+<script>
+(() => {
+  const count = document.getElementById('online-count');
+  const updated = document.getElementById('online-updated');
+  const error = document.getElementById('online-error');
+  const body = document.getElementById('online-players-body');
+  const text = (value) => document.createTextNode(value === null || value === undefined ? 'não informado' : String(value));
+  const cell = (value) => { const td = document.createElement('td'); td.appendChild(text(value)); return td; };
+  async function refreshPlayers() {
+    try {
+      const response = await fetch('{{ url_for("api_players") }}', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      count.textContent = data.player_count ?? 0;
+      updated.textContent = data.server?.last_status_update || 'agora';
+      error.textContent = data.error || '';
+      error.classList.toggle('visible', Boolean(data.error));
+      body.replaceChildren();
+      if (!data.players?.length) {
+        const row = document.createElement('tr');
+        const empty = cell('Nenhum player retornado pelo status do servidor.');
+        empty.colSpan = 4;
+        empty.className = 'muted';
+        row.appendChild(empty);
+        body.appendChild(row);
+        return;
+      }
+      data.players.forEach((player) => {
+        const row = document.createElement('tr');
+        row.appendChild(cell(player.name));
+        row.appendChild(cell(player.score));
+        row.appendChild(cell(player.duration));
+        const detailCell = document.createElement('td');
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Ver detalhes';
+        const detailJson = document.createElement('pre');
+        detailJson.className = 'player-details';
+        detailJson.textContent = JSON.stringify(player.details || {}, null, 2);
+        details.append(summary, detailJson);
+        detailCell.appendChild(details);
+        row.appendChild(detailCell);
+        body.appendChild(row);
+      });
+    } catch (refreshError) {
+      error.textContent = `Não foi possível atualizar jogadores: ${refreshError.message}`;
+      error.classList.add('visible');
+    }
+  }
+  setInterval(refreshPlayers, 10000);
+})();
+</script>
 {% endblock %}

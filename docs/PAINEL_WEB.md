@@ -40,13 +40,23 @@ deixar o sistema sem um administrador ativo.
 
 Os parâmetros documentados são `SERVER_NAME`, `WORLD_NAME`, `SERVER_PASS`,
 `SERVER_PUBLIC`, `SERVER_PORT`, `TZ`, `SEED`, `BACKUPS`, `BACKUPS_CRON`,
-`BACKUPS_MAX_AGE`, `CROSSPLAY`, `UPDATE_CRON` e todos os filtros
+`BACKUPS_MAX_AGE`, `CROSSPLAY`, `STATUS_HTTP`, `STATUS_HTTP_PORT`, `UPDATE_CRON` e todos os filtros
 `VALHEIM_LOG_FILTER_CONTAINS_*` presentes no ambiente. Variáveis adicionais com
 nome em `A-Z`, `0-9` e `_` podem ser preservadas e editadas. Variáveis `WEB_*`
 ficam fora desse formulário porque pertencem ao próprio painel.
 
 `SERVER_PASS` nunca é devolvida para o HTML. O operador pode substituí-la
 preenchendo o campo; vazio preserva o valor atual.
+
+## Players conectados
+
+O dashboard consulta o endpoint interno `http://valheim:80/status.json` e
+atualiza a presença a cada 10 segundos. A resposta fornece contagem, nome
+quando disponível, score, duração da conexão e metadados do servidor. A mesma
+resposta pode trazer nomes vazios; por isso o painel também exibe as últimas
+linhas de conexão encontradas nos logs, incluindo nome e ZDOID quando o log os
+fornece. Essas linhas de log são histórico recente, não uma confirmação de
+presença atual.
 
 Ao alterar `SERVER_PORT`, a recriação também remapeia as três portas UDP
 contíguas usadas pelo Valheim (`SERVER_PORT`, `SERVER_PORT+1` e

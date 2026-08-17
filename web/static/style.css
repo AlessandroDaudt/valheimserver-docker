@@ -26,6 +26,8 @@ h2 { font-size: 1.15rem; letter-spacing: -.02em; }
 .status-running { color: #72e2ad; }
 .status-exited, .status-dead, .status-indisponível { color: #ff9e86; }
 .notice, .flash { padding: 14px 16px; border-radius: 10px; margin-bottom: 18px; border: 1px solid #39564f; background: #172823; color: #c4e9dc; }
+.notice.compact { display: none; margin-bottom: 12px; }
+.notice.compact.visible { display: block; }
 .flash.error { border-color: #754b43; background: #2b1b1a; color: #ffc3b8; }
 .flash.success { border-color: #3e755f; }
 .actions, .form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -58,6 +60,14 @@ th { color: #8fa49c; font-size: .72rem; text-transform: uppercase; letter-spacin
 .row-form select { width: auto; }
 .delete-form { display: inline; margin-left: 10px; }
 .log-card { padding: 0; overflow: hidden; }
+.online-card { margin-bottom: 18px; }
+.online-count { display: inline-flex; min-width: 1.8rem; justify-content: center; padding: 2px 7px; border-radius: 999px; background: #294a40; color: #a8e6d1; font-size: .8em; vertical-align: middle; }
+.server-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; color: #aebeb8; font-size: .82rem; }
+.recent-connections { margin-top: 20px; border-top: 1px solid #30403f; padding-top: 16px; color: #cfe0d9; }
+.recent-connections summary { cursor: pointer; color: #a8e6d1; }
+.recent-connections ul { margin-bottom: 12px; padding-left: 20px; }
+.online-card details summary { cursor: pointer; color: #a8e6d1; }
+.player-details { max-height: 220px; margin-top: 8px; padding: 10px; border: 1px solid #30403f; border-radius: 8px; background: #101918; font-size: .72rem; }
 pre { margin: 0; padding: 20px; overflow: auto; max-height: 70vh; color: #cce8dc; font: .78rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .error-page { text-align: center; padding: 72px 24px; }
 @media (max-width: 900px) { .topbar { align-items: flex-start; flex-wrap: wrap; } .account { margin-left: 0; } .grid.three, .settings-grid { grid-template-columns: 1fr; } }

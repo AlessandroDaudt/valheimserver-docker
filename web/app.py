@@ -6,10 +6,13 @@ import secrets
 import sqlite3
 import tempfile
 import threading
+import json
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any, Callable
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from flask import (
     Flask,
@@ -36,6 +39,7 @@ DATABASE_PATH = DATA_DIR / "web.sqlite3"
 ENV_FILE = Path(os.environ.get("VALHEIM_ENV_FILE", "/runtime/valheim.env"))
 CONFIG_DIR = Path(os.environ.get("VALHEIM_CONFIG_DIR", "/config"))
 CONTAINER_NAME = os.environ.get("VALHEIM_CONTAINER_NAME", "valheim-server")
+STATUS_URL_OVERRIDE = os.environ.get("VALHEIM_STATUS_URL", "").strip()
 SESSION_HOURS = int(os.environ.get("WEB_SESSION_HOURS", "8"))
 SERVER_ACTION_LOCK = threading.Lock()
 
@@ -57,6 +61,8 @@ SETTING_DEFINITIONS = [
     ("BACKUPS_CRON", "Agenda de backups", "text", "Expressão cron dos backups automáticos."),
     ("BACKUPS_MAX_AGE", "Retenção de backups", "number", "Quantidade máxima de dias para manter backups."),
     ("CROSSPLAY", "Crossplay", "boolean", "Ativa o acesso por relay do crossplay."),
+    ("STATUS_HTTP", "Status HTTP interno", "boolean", "Ativa a consulta interna de jogadores conectados."),
+    ("STATUS_HTTP_PORT", "Porta do status interno", "number", "Porta HTTP interna usada pelo status do Valheim."),
     ("UPDATE_CRON", "Agenda de atualização", "text", "Expressão cron para atualização; vazio desativa."),
     (
         "VALHEIM_LOG_FILTER_CONTAINS_EXTERNAL_IP",
@@ -372,13 +378,14 @@ def validate_setting(key: str, value: str) -> str | None:
         return "deve ter pelo menos 5 caracteres"
     if key in {"SERVER_PUBLIC", "BACKUPS", "CROSSPLAY"} and value.lower() not in {"true", "false"}:
         return "use true ou false"
-    if key == "SERVER_PORT":
+    if key in {"SERVER_PORT", "STATUS_HTTP_PORT"}:
         try:
             port = int(value)
         except ValueError:
             return "deve ser um número"
-        if not 1 <= port <= 65533:
-            return "deve estar entre 1 e 65533 para reservar as três portas do Valheim"
+        maximum = 65533 if key == "SERVER_PORT" else 65535
+        if not 1 <= port <= maximum:
+            return f"deve estar entre 1 e {maximum}"
     if key == "BACKUPS_MAX_AGE":
         try:
             age = int(value)
@@ -435,6 +442,118 @@ def docker_client() -> Any:
 
 def get_valheim_container() -> Any:
     return docker_client().containers.get(CONTAINER_NAME)
+
+
+PLAYER_CONNECTION_RE = re.compile(r"Got character ZDOID from (?P<name>.+?) : (?P<zdoid>[^\s]+)")
+
+
+def duration_label(seconds: Any) -> str:
+    try:
+        total = max(0, int(float(seconds)))
+    except (TypeError, ValueError):
+        return "não informado"
+    hours, remainder = divmod(total, 3600)
+    minutes, seconds_left = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    return f"{minutes}m {seconds_left:02d}s"
+
+
+def status_url() -> str:
+    if STATUS_URL_OVERRIDE:
+        return STATUS_URL_OVERRIDE
+    try:
+        status_port = int(read_env_values().get("STATUS_HTTP_PORT", "80"))
+        if not 1 <= status_port <= 65535:
+            raise ValueError
+    except RuntimeError:
+        status_port = 80
+    except ValueError:
+        status_port = 80
+    return f"http://valheim:{status_port}/status.json"
+
+
+def recent_player_connections(limit: int = 25) -> list[dict[str, str]]:
+    try:
+        output = get_valheim_container().logs(tail=1500, timestamps=True).decode("utf-8", errors="replace")
+    except Exception:
+        return []
+    connections: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for line in reversed(output.splitlines()):
+        match = PLAYER_CONNECTION_RE.search(line)
+        if not match or match.group("zdoid") in seen:
+            continue
+        seen.add(match.group("zdoid"))
+        connections.append(
+            {
+                "name": match.group("name").strip(),
+                "zdoid": match.group("zdoid"),
+                "log_line": line.strip(),
+            }
+        )
+        if len(connections) >= limit:
+            break
+    return connections
+
+
+def player_status() -> dict[str, Any]:
+    current_status_url = status_url()
+    request_object = Request(current_status_url, headers={"Accept": "application/json"})
+    try:
+        with urlopen(request_object, timeout=4) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("resposta de status não é um objeto JSON")
+    except (OSError, URLError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "available": False,
+            "error": f"status do Valheim indisponível: {exc}",
+            "url": current_status_url,
+            "player_count": 0,
+            "players": [],
+            "recent_connections": recent_player_connections(),
+            "server": {},
+        }
+
+    raw_players = payload.get("players") if isinstance(payload.get("players"), list) else []
+    players: list[dict[str, Any]] = []
+    for index, raw_player in enumerate(raw_players, start=1):
+        if not isinstance(raw_player, dict):
+            continue
+        players.append(
+            {
+                "index": index,
+                "name": raw_player.get("name") or "Nome não informado pelo query server",
+                "score": raw_player.get("score", "não informado"),
+                "duration_seconds": raw_player.get("duration", 0),
+                "duration": duration_label(raw_player.get("duration", 0)),
+                "details": raw_player,
+            }
+        )
+    try:
+        player_count = int(payload.get("player_count", len(players)))
+    except (TypeError, ValueError):
+        player_count = len(players)
+    return {
+        "available": not payload.get("error"),
+        "error": payload.get("error"),
+        "url": current_status_url,
+        "player_count": player_count,
+        "players": players,
+        "recent_connections": recent_player_connections(),
+        "server": {
+            "server_name": payload.get("server_name"),
+            "server_type": payload.get("server_type"),
+            "platform": payload.get("platform"),
+            "port": payload.get("port"),
+            "steam_id": payload.get("steam_id"),
+            "game_id": payload.get("game_id"),
+            "keywords": payload.get("keywords"),
+            "password_protected": payload.get("password_protected"),
+            "last_status_update": payload.get("last_status_update"),
+        },
+    }
 
 
 def server_status() -> dict[str, Any]:
@@ -566,7 +685,18 @@ def recreate_valheim_container() -> None:
 @app.get("/")
 @role_required("admin", "operator")
 def dashboard() -> Any:
-    return render_template("dashboard.html", status=server_status(), env=read_env_values())
+    return render_template(
+        "dashboard.html",
+        status=server_status(),
+        env=read_env_values(),
+        player_status=player_status(),
+    )
+
+
+@app.get("/api/players")
+@role_required("admin", "operator")
+def api_players() -> Any:
+    return jsonify(player_status())
 
 
 @app.route("/settings", methods=["GET", "POST"])
