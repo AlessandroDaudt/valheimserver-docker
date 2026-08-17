@@ -1,27 +1,54 @@
-name: Testar runner Valheim
+name: Deploy Valheim
 
 on:
+  push:
+    branches:
+      - valheimserver-docker
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  deploy:
+    name: Atualizar servidor Valheim
     runs-on:
       - self-hosted
       - valheim
 
+    concurrency:
+      group: valheim-deploy
+      cancel-in-progress: false
+
     steps:
+      - name: Atualizar projeto no servidor
+        shell: bash
+        working-directory: /home/alessandro/valheim-server
+        run: |
+          git fetch origin valheimserver-docker
+          git checkout valheimserver-docker
+          git pull --ff-only origin valheimserver-docker
+
       - name: Verificar Docker
         shell: bash
         run: |
           docker version
           docker compose version
 
-      - name: Verificar projeto Valheim
+      - name: Validar projeto Valheim
         shell: bash
         working-directory: /home/alessandro/valheim-server
         run: |
           docker compose config --quiet
-          docker compose ps
+
+      - name: Atualizar imagem e aplicar mudanças
+        shell: bash
+        working-directory: /home/alessandro/valheim-server
+        run: |
+          docker compose pull valheim
+          docker compose up -d --force-recreate --remove-orphans
+
+      - name: Confirmar serviço
+        shell: bash
+        working-directory: /home/alessandro/valheim-server
+        run: docker compose ps
