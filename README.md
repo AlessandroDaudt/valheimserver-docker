@@ -1,116 +1,87 @@
-# Servidor Valheim
+# Valheim Server
 
-Projeto Docker Compose para executar o servidor dedicado de Valheim e uma
-interface web HTTPS para operação, configuração e controle de usuários.
+Docker Compose project for running a dedicated Valheim server and an HTTPS web interface for operation, configuration, and user management.
 
-## Requisitos
+## Requirements
 
-- Docker Desktop ou Docker Engine com Docker Compose v2.24 ou mais recente;
-- espaço em disco para runtime, mundo e backups;
-- senha forte para o servidor e senha forte para o painel.
+- Docker Desktop or Docker Engine with Docker Compose v2.24 or later;
+- disk space for runtime data, the world, and backups;
+- a strong server password and a strong panel password.
 
-## Primeiro acesso
+## First access
 
-1. Copie `valheim.env.example` para `valheim.env` e ajuste principalmente
-   `SERVER_PASS`.
-2. Copie `web.env.example` para `web.env`. Defina `WEB_ADMIN_PASSWORD` com pelo
-   menos 12 caracteres e uma chave aleatória longa em `WEB_SECRET_KEY`. O arquivo
-   `web.env` é ignorado pelo Git.
-3. Suba os serviços:
+1. Copy `valheim.env.example` to `valheim.env` and adjust at least `SERVER_PASS`.
+2. Copy `web.env.example` to `web.env`. Set `WEB_ADMIN_PASSWORD` to at least 12 characters and use a long random key in `WEB_SECRET_KEY`. `web.env` is ignored by Git.
+3. Start the services:
 
    ```powershell
    docker compose up -d --build
    ```
 
-4. Abra `https://localhost:8443`. O certificado inicial é autoassinado e o
-   navegador exibirá um aviso; para uso real, monte um certificado confiável.
+4. Open `https://localhost:8443`. The initial certificate is self-signed, so the browser will show a warning; for real use, mount a trusted certificate.
 
-Se `web.env` não existir, o painel gera uma senha administrativa temporária e a
-imprime uma vez nos logs:
+If `web.env` does not exist, the panel generates a temporary administrator password and prints it once in the logs:
 
 ```powershell
 docker compose logs web
 ```
 
-Altere essa senha em **Usuários** depois do primeiro login.
+Change this password under **Users** after the first login.
 
-## Interface web
+## Web interface
 
-O menu **Backups** (somente `admin`) cria um arquivo completo com o mundo,
-listas, configuraÃ§Ãµes de `config/` e o `valheim.env`, incluindo seed, senha e
-outras variÃ¡veis do servidor. O arquivo pode ser baixado, enviado novamente e
-restaurado pelo painel. A restauraÃ§Ã£o cria primeiro um backup de seguranÃ§a,
-para permitir retorno ao estado anterior.
+The **Backups** menu (admin only) creates a complete archive containing the world, lists, `config/` settings, and `valheim.env`, including the seed, password, and other server variables. The archive can be downloaded, uploaded again, and restored through the panel. A safety backup is created before restoration so the previous state can be recovered.
 
-O painel administra o container `valheim-server` através do Docker Engine local.
-Ele oferece dashboard, iniciar/parar/reiniciar, edição de todas as variáveis
-documentadas e adicionais, aplicação das configurações, listas de jogadores,
-logs, usuários e auditoria.
+The panel manages the `valheim-server` container through the local Docker Engine. It provides a dashboard, start/stop/restart controls, editing for all documented and additional variables, configuration application, player lists, logs, users, and auditing.
 
-O papel `admin` possui acesso total, incluindo criação, alteração e exclusão de
-usuários. O papel `operator` pode operar o servidor, alterar sua configuração,
-gerenciar listas de jogadores e consultar logs, mas não pode administrar contas
-do painel nem consultar a auditoria.
+The `admin` role has full access, including creating, changing, and deleting users. The `operator` role can operate the server, change its configuration, manage player lists, and view logs, but cannot manage panel accounts or view the audit log.
 
-## Configuração do servidor
+## Server configuration
 
-As variáveis ficam em `valheim.env`. A interface apresenta as opções já
-documentadas no projeto e preserva variáveis adicionais existentes.
+Variables live in `valheim.env`. The interface shows the options already documented by the project and preserves existing additional variables.
 
-| Variável | Função | Valor de referência |
-| --- | --- | --- |
-| `SERVER_NAME` | Nome exibido do servidor | `PowerGuido_New` |
-| `WORLD_NAME` | Nome do mundo | `PowerGuido` |
-| `SERVER_PASS` | Senha de acesso | definir localmente |
-| `SERVER_PUBLIC` | Publica o servidor na lista | `true` |
-| `SERVER_PORT` | Porta principal; o painel publica também as duas seguintes | `2456` |
-| `TZ` | Fuso dos agendamentos | `America/Sao_Paulo` |
-| `SEED` | Seed para mundo novo | `EVpmm24uK8` |
-| `BACKUPS` | Ativa backups automáticos | `true` |
-| `BACKUPS_CRON` | Agenda dos backups | `5 * * * *` |
-| `BACKUPS_MAX_AGE` | Retenção em dias | `7` |
-| `CROSSPLAY` | Ativa crossplay via relay | `true` |
-| `STATUS_HTTP` / `STATUS_HTTP_PORT` | Status interno usado pelo painel para players conectados | `true` / `80` |
-| `UPDATE_CRON` | Agenda de atualização; vazio desativa | vazio |
-| `VALHEIM_LOG_FILTER_CONTAINS_*` | Filtros de mensagens não fatais | conforme ambiente |
+| Variable | Purpose | Reference value |
+|---|---|---|
+| `SERVER_NAME` | Displayed server name | `PowerGuido_New` |
+| `WORLD_NAME` | World name | `PowerGuido` |
+| `SERVER_PASS` | Access password | define locally |
+| `SERVER_PUBLIC` | Publish the server in the list | `true` |
+| `SERVER_PORT` | Main port; the panel also publishes the next two | `2456` |
+| `TZ` | Scheduling timezone | `America/Sao_Paulo` |
+| `SEED` | Seed for a new world | `EVpmm24uK8` |
+| `BACKUPS` | Enable automatic backups | `true` |
+| `BACKUPS_CRON` | Backup schedule | `5 * * * *` |
+| `BACKUPS_MAX_AGE` | Retention in days | `7` |
+| `CROSSPLAY` | Enable crossplay through the relay | `true` |
+| `STATUS_HTTP` / `STATUS_HTTP_PORT` | Internal status used by the panel for connected players | `true` / `80` |
+| `UPDATE_CRON` | Update schedule; empty disables it | empty |
+| `VALHEIM_LOG_FILTER_CONTAINS_*` | Filters for non-fatal messages | environment-dependent |
 
-Depois de editar pelo painel, o serviço é recriado automaticamente. Alterações
-manuais exigem:
+After editing through the panel, the service is recreated automatically. Manual changes require:
 
 ```powershell
 docker compose up -d --force-recreate valheim
 ```
 
-## Listas administrativas de jogadores
+## Administrative player lists
 
-Informe um identificador por linha nos arquivos abaixo ou use **Listas de
-jogadores** no painel:
+Enter one identifier per line in the files below or use **Player lists** in the panel:
 
-- `config/adminlist.txt`: administradores do Valheim;
-- `config/bannedlist.txt`: jogadores banidos;
-- `config/permittedlist.txt`: jogadores permitidos, quando usada.
+- `config/adminlist.txt`: Valheim administrators;
+- `config/bannedlist.txt`: banned players;
+- `config/permittedlist.txt`: permitted players, when used.
 
-Reinicie o serviço depois de alterar as listas para garantir que o runtime
-recarregue os arquivos.
+Restart the service after changing the lists so the runtime reloads the files.
 
-## HTTPS e segurança operacional
+## HTTPS and operational security
 
-O serviço web escuta `8443/tcp`. O certificado autoassinado fica em
-`web-certs/`, que não é versionado. Para produção, substitua
-`web-certs/server.crt` e `web-certs/server.key` por um certificado válido para
-`WEB_HOSTNAME` e reinicie o serviço web.
+The web service listens on `8443/tcp`. The self-signed certificate lives in `web-certs/`, which is not versioned. For production, replace `web-certs/server.crt` and `web-certs/server.key` with a valid certificate for `WEB_HOSTNAME` and restart the web service.
 
-O painel monta `/var/run/docker.sock` porque precisa controlar o container do
-servidor. Esse socket equivale a uma permissão elevada no Docker Engine:
-mantenha o painel em uma rede confiável, não publique a porta 8443 diretamente
-na Internet sem TLS confiável e mantenha as credenciais fora do Git.
+The panel mounts `/var/run/docker.sock` because it needs to control the server container. This socket is equivalent to elevated permission on the Docker Engine: keep the panel on a trusted network, do not expose port 8443 directly to the internet without trusted TLS, and keep credentials out of Git.
 
-O painel consulta `http://valheim:80/status.json` somente na rede interna do
-Compose. A seção de presença mostra a contagem em tempo real, os campos
-retornados pelo query server e as últimas conexões identificadas nos logs. O
-query server pode não fornecer o nome do jogador em todas as plataformas.
+The panel queries `http://valheim:80/status.json` only on the internal Compose network. The presence section shows the live count, fields returned by the query server, and the latest connections identified in the logs. The query server may not provide the player name on every platform.
 
-## Operação rápida
+## Quick operations
 
 ```powershell
 docker compose ps
@@ -121,23 +92,21 @@ docker compose pull valheim
 docker compose up -d --build --force-recreate
 ```
 
-Backups, restauração, atualização da imagem e diagnóstico estão em
-[`docs/OPERACAO.md`](docs/OPERACAO.md). A arquitetura e os limites do painel
-estão em [`docs/PAINEL_WEB.md`](docs/PAINEL_WEB.md).
+Backups, restoration, image updates, and diagnostics are documented in [`docs/OPERACAO.md`](docs/OPERACAO.md). The panel architecture and limits are in [`docs/PAINEL_WEB.md`](docs/PAINEL_WEB.md).
 
-## Estrutura e versionamento
+## Structure and versioning
 
-| Caminho | Finalidade | Git |
-| --- | --- | --- |
-| `docker-compose.yml` | serviços Valheim e painel web | versionar |
-| `web/` | aplicação Flask, templates e imagem web | versionar |
-| `valheim.env.example` | modelo sem segredo | versionar |
-| `valheim.env` | credenciais e configuração local | ignorar |
-| `web.env.example` | modelo de credenciais do painel | versionar |
-| `web.env` | credenciais e chave de sessão | ignorar |
-| `config/*.txt` | listas administrativas | versionar conforme necessário |
-| `web-data/` | banco SQLite de usuários e auditoria | ignorar |
-| `web-certs/` | certificado e chave HTTPS | ignorar |
-| `config/worlds_local/` | mundo, bancos `.db` e backups do mundo | ignorar |
-| `config/backups/` | ZIPs de backup do servidor | ignorar |
-| `data/` | instalação/runtime do servidor | ignorar |
+| Path | Purpose | Git |
+|---|---|---|
+| `docker-compose.yml` | Valheim and web panel services | commit |
+| `web/` | Flask application, templates, and web image | commit |
+| `valheim.env.example` | Secret-free template | commit |
+| `valheim.env` | Credentials and local configuration | ignore |
+| `web.env.example` | Panel credential template | commit |
+| `web.env` | Credentials and session key | ignore |
+| `config/*.txt` | Administrative lists | commit as needed |
+| `web-data/` | SQLite user and audit database | ignore |
+| `web-certs/` | HTTPS certificate and key | ignore |
+| `config/worlds_local/` | World, `.db` files, and world backups | ignore |
+| `config/backups/` | Server backup ZIPs | ignore |
+| `data/` | Server installation/runtime | ignore |
